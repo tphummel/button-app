@@ -1,0 +1,281 @@
+<!doctype html>
+<html class="no-js" lang="">
+<head>
+  <meta charset="utf-8">
+  <title>Button App</title>
+  <meta name="description" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- https://css-tricks.com/emoji-as-a-favicon/ -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖲</text></svg>">
+
+  <script src="localForage-1.10.0/dist/localforage.js"></script>
+  <script type="application/javascript">
+const DB = 'buttonData'
+
+function buttonClick () {
+  runWaterfall([
+    (cb) => {
+      localforage.getItem(DB, (err, buttonData) => {
+        return cb(err, buttonData)
+      })
+    },
+    (buttonData, cb) => {
+      if (!buttonData) buttonData = []
+
+      buttonData.push({
+        createdAt: Date.now(),
+        id: getUUID()
+      })
+      return cb(null, buttonData)
+    },
+    (buttonData, cb) => {
+      localforage.setItem(DB, buttonData, cb)
+    },
+    (buttonData, cb) => {
+      return updateSummary(cb)
+    },
+    updateTable
+  ], (err) => {
+    if (err) console.error(err)
+  })
+}
+
+function updateSummary (done) {
+  runWaterfall([
+    (cb) => {
+      localforage.getItem(DB, (err, buttonData) => {
+        return cb(err, buttonData)
+      })
+    },
+    (buttonData, cb) => {
+      if (!buttonData) buttonData = []
+      document.querySelector('.data-summary').innerHTML = `You have records: ${buttonData.length}`
+      return cb(null)
+    }
+  ], done)
+}
+
+function updateTable (done) {
+  runWaterfall([
+    (cb) => {
+      localforage.getItem(DB, (err, buttonData) => {
+        return cb(err, buttonData)
+      })
+    },
+    (buttonData, cb) => {
+      const table = document.querySelector('div.all-data table')
+
+      for (let i = 1; i < table.rows.length;) {
+        table.deleteRow(i)
+      }
+
+      if (!buttonData) buttonData = []
+
+      for (let i = 0; i < buttonData.length; i++) {
+        const row = table.insertRow()
+        row.insertCell().appendChild(document.createTextNode(i))
+        row.insertCell().appendChild(document.createTextNode(buttonData[i].id))
+        row.insertCell().appendChild(document.createTextNode(buttonData[i].createdAt))
+      }
+
+      return cb(null)
+    }
+  ], done)
+}
+
+function exportJSON (done) {
+  runWaterfall([
+    (cb) => {
+      localforage.getItem(DB, (err, buttonData) => {
+        return cb(err, buttonData)
+      })
+    },
+    (buttonData, cb) => {
+      const jsonLink = document.createElement('a')
+      jsonLink.download = `button-data-${Date.now()}.json`
+      jsonLink.href = `data:application/json;charset=utf-8, ${JSON.stringify(buttonData)}`
+      jsonLink.click()
+      return cb(null)
+    }
+  ], done)
+}
+
+function importJSON (done) {
+  if (!done) done = () => {}
+
+  runWaterfall([
+    (cb) => {
+      console.log('starting importJSON()')
+
+      const importFiles = Array.from(document.getElementById('import-file').files)
+
+      console.log(`import files chosen: ${importFiles.length}`)
+
+      const jsonFiles = importFiles.filter((file) => file.type === 'application/json')
+
+      console.log(`json files chosen: ${jsonFiles.length}`)
+      importFiles.forEach((file) => {
+        console.log(file.name, file.type)
+      })
+
+      const reader = new FileReader()
+
+      reader.onload = (e) => {
+        let jsonData
+        try {
+          jsonData = JSON.parse(e.target.result)
+        } catch (e) {
+          return cb(e)
+        }
+        return cb(null, jsonData)
+      }
+
+      reader.onerror = (e) => {
+        return cb(e)
+      }
+
+      reader.readAsText(jsonFiles[0], 'UTF-8')
+    },
+    (importedData, cb) => {
+      console.log('getting existing data from localforage')
+      localforage.getItem(DB, (err, existingData) => {
+        return cb(err, existingData, importedData)
+      })
+    },
+    (existingData, importedData, cb) => {
+      const summary = {
+        existing: existingData.length,
+        imported: importedData.length
+      }
+
+      // could do some more sophisticated things here. sort, zip, dedupe. naive now
+      const mergedData = existingData.concat(importedData)
+      summary.merged = mergedData.length
+      console.log('import summary:', summary)
+
+      document.getElementById('import-file').value = null
+
+      return cb(null, mergedData)
+    },
+    (mergedData, cb) => {
+      localforage.setItem(DB, mergedData, cb)
+    },
+    (buttonData, cb) => {
+      // setItem returns the item to the callback so not using updateSummary directly. need to wrap it.
+      return updateSummary(cb)
+    },
+    updateTable
+  ], done)
+}
+
+function deleteData (done) {
+  if (!done) done = () => {}
+
+  runWaterfall([
+    (cb) => {
+      localforage.removeItem(DB, function (err) {
+        return cb(err)
+      })
+    },
+    updateSummary,
+    updateTable
+  ], done)
+}
+
+// https://gist.github.com/antonioaguilar/6135f84658328d399ed656ba3169e558
+function getUUID () {
+  let d = new Date().getTime()
+  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (d + Math.random() * 16) % 16 | 0
+    d = Math.floor(d / 16)
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+  return uuid
+}
+
+// https://github.com/feross/run-waterfall
+function runWaterfall (tasks, cb) {
+  let current = 0
+  let isSync = true
+
+  function done (err, args) {
+    function end () {
+      args = args ? [].concat(err, args) : [err]
+      if (cb) cb.apply(undefined, args)
+    }
+    if (isSync) process.nextTick(end)
+    else end()
+  }
+
+  function each (err) {
+    const args = Array.prototype.slice.call(arguments, 1)
+    if (++current >= tasks.length || err) {
+      done(err, args)
+    } else {
+      tasks[current].apply(undefined, [].concat(args, each))
+    }
+  }
+
+  if (tasks.length) {
+    tasks[0](each)
+  } else {
+    done(null)
+  }
+
+  isSync = false
+}
+
+document.addEventListener('DOMContentLoaded', (event) => {
+  runWaterfall([
+    updateSummary,
+    updateTable
+  ])
+})
+  </script>
+</head>
+<body>
+  <h1>🌙 Button App 🍪</h1>
+
+  <h2>🔘 The Button 🔘</h2>
+  <div class="the-button">
+    <button onclick="buttonClick()">Click the Button</button>
+  </div>
+  <hr />
+
+  <h2>📊 Summary 📈</h2>
+  <div class="data-summary"></div>
+  <hr />
+
+  <h2>🛠 Data Actions 🗜</h2>
+  <div class="data-actions">
+    <h3>📤 Export 📓</h3>
+    <p>
+      <button onclick="exportJSON()">Export JSON</button>
+    </p>
+
+    <h3>📥 Import 📔</h3>
+    <p>
+      <input type="file" id="import-file" \>
+      <button onclick="importJSON()">Import JSON</button>
+    </p>
+
+    <h3>⛔️ Delete ⛔️</h3>
+    <p>
+      <button onclick="if(confirm('Delete all data? This is irreversible.')) deleteData()">Delete All Data Forever</button>
+    </p>
+  </div>
+  <hr />
+  <h2>🗄 All Data 🗂</h2>
+  <div class="all-data">
+    <table>
+      <tr>
+        <th>#</th>
+        <th>id</th>
+        <th>ts</th>
+      </tr>
+    </table>
+  </div>
+
+</body>
+</html>
