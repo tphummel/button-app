@@ -144,6 +144,7 @@ function importJSON (done) {
       })
     },
     (existingData, importedData, cb) => {
+      if (!existingData) existingData = []
       const summary = {
         existing: existingData.length,
         imported: importedData.length
