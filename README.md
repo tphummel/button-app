@@ -1,6 +1,6 @@
 # button app
 
-a browser-only "app".
+a browser-only "app". [demo](https://tphummel.github.io/button-app/)
 
 Features:
 
@@ -10,7 +10,16 @@ Features:
 - import and export data
 - delete all data
 
+# install
+
+iOS: open [app](https://tphummel.github.io/button-app/) in mobile safari. add to home screen. 
+
 # vendored deps
 
-- https://github.com/localForage/localForage
+- https://github.com/pouchdb/pouchdb
 - https://github.com/feross/run-waterfall
+
+# inspired by
+
+- https://nomie.app/
+- https://www.powerlanguage.co.uk/wordle/

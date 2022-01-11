@@ -9,230 +9,104 @@
   <!-- https://css-tricks.com/emoji-as-a-favicon/ -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖲</text></svg>">
 
-  <script src="localForage-1.10.0/dist/localforage.js"></script>
+  <script src="pouchdb-7.2.1.js"></script>
   <script type="application/javascript">
-const DB = 'buttonData'
+
+let db = new PouchDB('clicks')
+
+db.changes({
+  since: 'now',
+  live: true
+}).on('change', showClicks)
+
+function showClicks () {
+  db.allDocs({include_docs: true, descending: true}, function (err, doc) {
+    redrawClicksUI(doc.rows)
+  })
+}
+
+function redrawClicksUI (rows) {
+  document.querySelector('.data-summary').innerHTML = `You have records: ${rows.length}`
+
+  const table = document.querySelector('div.all-data table')
+  table.innerHTML = ''
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = table.insertRow()
+    row.insertCell().appendChild(document.createTextNode(i))
+    row.insertCell().appendChild(document.createTextNode(rows[i].doc._id))
+    row.insertCell().appendChild(document.createTextNode(rows[i].doc.createdAt))
+  }
+}
 
 function buttonClick () {
-  runWaterfall([
-    (cb) => {
-      localforage.getItem(DB, (err, buttonData) => {
-        return cb(err, buttonData)
-      })
-    },
-    (buttonData, cb) => {
-      if (!buttonData) buttonData = []
-
-      buttonData.push({
-        createdAt: Date.now(),
-        id: getUUID()
-      })
-      return cb(null, buttonData)
-    },
-    (buttonData, cb) => {
-      localforage.setItem(DB, buttonData, cb)
-    },
-    (buttonData, cb) => {
-      return updateSummary(cb)
-    },
-    updateTable
-  ], (err) => {
+  db.put({
+    createdAt: Date.now(),
+    _id: (new Date()).toISOString()
+  }, (err, result) => {
     if (err) console.error(err)
   })
 }
 
-function updateSummary (done) {
-  runWaterfall([
-    (cb) => {
-      localforage.getItem(DB, (err, buttonData) => {
-        return cb(err, buttonData)
-      })
-    },
-    (buttonData, cb) => {
-      if (!buttonData) buttonData = []
-      document.querySelector('.data-summary').innerHTML = `You have records: ${buttonData.length}`
-      return cb(null)
-    }
-  ], done)
-}
-
-function updateTable (done) {
-  runWaterfall([
-    (cb) => {
-      localforage.getItem(DB, (err, buttonData) => {
-        return cb(err, buttonData)
-      })
-    },
-    (buttonData, cb) => {
-      const table = document.querySelector('div.all-data table')
-
-      for (let i = 1; i < table.rows.length;) {
-        table.deleteRow(i)
-      }
-
-      if (!buttonData) buttonData = []
-
-      for (let i = 0; i < buttonData.length; i++) {
-        const row = table.insertRow()
-        row.insertCell().appendChild(document.createTextNode(i))
-        row.insertCell().appendChild(document.createTextNode(buttonData[i].id))
-        row.insertCell().appendChild(document.createTextNode(buttonData[i].createdAt))
-      }
-
-      return cb(null)
-    }
-  ], done)
-}
-
 function exportJSON (done) {
-  runWaterfall([
-    (cb) => {
-      localforage.getItem(DB, (err, buttonData) => {
-        return cb(err, buttonData)
-      })
-    },
-    (buttonData, cb) => {
-      const jsonLink = document.createElement('a')
-      jsonLink.download = `button-data-${Date.now()}.json`
-      jsonLink.href = `data:application/json;charset=utf-8, ${JSON.stringify(buttonData)}`
-      jsonLink.click()
-      return cb(null)
-    }
-  ], done)
+  db.allDocs({include_docs: true, descending: true}, function (err, doc) {
+    const jsonLink = document.createElement('a')
+    jsonLink.download = `button-data-${Date.now()}.json`
+    jsonLink.href = `data:application/json;charset=utf-8, ${JSON.stringify(doc.rows)}`
+    jsonLink.click()
+  })
 }
 
 function importJSON (done) {
   if (!done) done = () => {}
+  const importFiles = Array.from(document.getElementById('import-file').files)
+  const jsonFiles = importFiles.filter((file) => file.type === 'application/json')
+  importFiles.forEach((file) => {
+    console.log(file.name, file.type)
+  })
 
-  runWaterfall([
-    (cb) => {
-      console.log('starting importJSON()')
+  const reader = new FileReader()
 
-      const importFiles = Array.from(document.getElementById('import-file').files)
+  reader.onerror = (e) => {
+    return cb(e)
+  }
 
-      console.log(`import files chosen: ${importFiles.length}`)
+  reader.onload = (e) => {
+    let jsonData
+    try {
+      jsonData = JSON.parse(e.target.result)
+    } catch (e) {
+      return cb(e)
+    }
 
-      const jsonFiles = importFiles.filter((file) => file.type === 'application/json')
+    document.getElementById('import-file').value = null
 
-      console.log(`json files chosen: ${jsonFiles.length}`)
-      importFiles.forEach((file) => {
-        console.log(file.name, file.type)
-      })
+    return db.bulkDocs(jsonData.map((item) => {
+      delete item.doc._rev
+      return item.doc
+    }))
+  }
 
-      const reader = new FileReader()
-
-      reader.onload = (e) => {
-        let jsonData
-        try {
-          jsonData = JSON.parse(e.target.result)
-        } catch (e) {
-          return cb(e)
-        }
-        return cb(null, jsonData)
-      }
-
-      reader.onerror = (e) => {
-        return cb(e)
-      }
-
-      reader.readAsText(jsonFiles[0], 'UTF-8')
-    },
-    (importedData, cb) => {
-      console.log('getting existing data from localforage')
-      localforage.getItem(DB, (err, existingData) => {
-        return cb(err, existingData, importedData)
-      })
-    },
-    (existingData, importedData, cb) => {
-      if (!existingData) existingData = []
-      const summary = {
-        existing: existingData.length,
-        imported: importedData.length
-      }
-
-      // could do some more sophisticated things here. sort, zip, dedupe. naive now
-      const mergedData = existingData.concat(importedData)
-      summary.merged = mergedData.length
-      console.log('import summary:', summary)
-
-      document.getElementById('import-file').value = null
-
-      return cb(null, mergedData)
-    },
-    (mergedData, cb) => {
-      localforage.setItem(DB, mergedData, cb)
-    },
-    (buttonData, cb) => {
-      // setItem returns the item to the callback so not using updateSummary directly. need to wrap it.
-      return updateSummary(cb)
-    },
-    updateTable
-  ], done)
+  reader.readAsText(jsonFiles[0], 'UTF-8')
 }
 
 function deleteData (done) {
   if (!done) done = () => {}
 
-  runWaterfall([
-    (cb) => {
-      localforage.removeItem(DB, function (err) {
-        return cb(err)
+  let count = 0
+  db.allDocs({include_docs: true, descending: true}, function (err, docs) {
+    for (let i = 0; i < docs.rows.length; i++) {
+      db.remove(docs.rows[i].doc, (err) => {
+        if (err) return done(err)
+        count++
+        if (count === docs.rows.length) return done(null)
       })
-    },
-    updateSummary,
-    updateTable
-  ], done)
-}
-
-// https://gist.github.com/antonioaguilar/6135f84658328d399ed656ba3169e558
-function getUUID () {
-  let d = new Date().getTime()
-  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = (d + Math.random() * 16) % 16 | 0
-    d = Math.floor(d / 16)
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+    }
   })
-  return uuid
 }
 
-// https://github.com/feross/run-waterfall
-function runWaterfall (tasks, cb) {
-  let current = 0
-  let isSync = true
+document.addEventListener('DOMContentLoaded', showClicks)
 
-  function done (err, args) {
-    function end () {
-      args = args ? [].concat(err, args) : [err]
-      if (cb) cb.apply(undefined, args)
-    }
-    if (isSync) process.nextTick(end)
-    else end()
-  }
-
-  function each (err) {
-    const args = Array.prototype.slice.call(arguments, 1)
-    if (++current >= tasks.length || err) {
-      done(err, args)
-    } else {
-      tasks[current].apply(undefined, [].concat(args, each))
-    }
-  }
-
-  if (tasks.length) {
-    tasks[0](each)
-  } else {
-    done(null)
-  }
-
-  isSync = false
-}
-
-document.addEventListener('DOMContentLoaded', (event) => {
-  runWaterfall([
-    updateSummary,
-    updateTable
-  ])
-})
   </script>
 </head>
 <body>
