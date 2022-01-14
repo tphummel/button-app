@@ -8,7 +8,7 @@
 
   <!-- https://css-tricks.com/emoji-as-a-favicon/ -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕹</text></svg>">
-
+  <link rel="stylesheet" href="dark.min.css">
   <script src="pouchdb-7.2.1.js"></script>
   <script src="nes-games-randomized.js"></script>
   <script type="application/javascript">
@@ -53,7 +53,30 @@ function redrawGameUI (ix, rev) {
 }
 
 function redrawReportingUI (rows) {
-  document.querySelector('.data-summary').innerHTML = `You have records: ${rows.length - 1}`
+  const completed = rows.length - 1
+  let known = 0
+  let unknown = 0
+  let notesCount = 0
+  let notesCharCount = 0
+
+  rows.forEach((r) => {
+    if(r.doc._id === 'pointer') return
+
+    if (r.doc.notes.length) notesCount ++
+    notesCharCount += r.doc.notes.length
+
+    if (r.doc.known === "true") return known++
+    return unknown++
+  })
+  document.querySelector('.data-summary').innerHTML = `
+    <div>
+      Progress: <strong>${((completed / randomGames.length) * 100).toLocaleString()}% (${completed}/${randomGames.length})</strong>
+    </div>
+    <div>Known: <strong>${((known / completed) * 100).toLocaleString()}% (${known})</strong></div>
+    <div>Unknown: <strong>${((unknown / completed) * 100).toLocaleString()}% (${unknown})</strong></div>
+    <div>Notes Written: <strong>${notesCount}</strong></div>
+    <div>Total Notes Chars Written: <strong>${notesCharCount}</strong></div>
+  `
 
   const table = document.querySelector('div.all-data table')
   table.innerHTML = ''
@@ -189,7 +212,7 @@ document.addEventListener('DOMContentLoaded', initializePointer)
 
   <div class="game-details"></div>
   <div class="submit">
-    <p>Do you know this game?</p>
+    <p><abbr title="Define this however you want to. Example: Did you play it and can you visualize the game or box art?">Do you know this game?</abbr></p>
 
     <div>
       <input type="radio" id="known-true" name="known" value="true">
@@ -202,7 +225,7 @@ document.addEventListener('DOMContentLoaded', initializePointer)
     </div>
 
     <div>
-      <label for="story">Tell us your story:</label>
+      <label for="story">What do you remember?</label>
       <textarea id="story" name="story" rows="5" cols="33">
       </textarea>
     </div>
