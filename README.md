@@ -12,7 +12,7 @@ Features:
 
 # install
 
-iOS: open [app](https://tphummel.github.io/button-app/) in mobile safari. add to home screen. 
+iOS: open [app](https://tphummel.github.io/button-app/) in mobile safari. add to home screen.
 
 # vendored deps
 
