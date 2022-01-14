@@ -1,0 +1,245 @@
+<!doctype html>
+<html class="no-js" lang="">
+<head>
+  <meta charset="utf-8">
+  <title>NES</title>
+  <meta name="description" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- https://css-tricks.com/emoji-as-a-favicon/ -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕹</text></svg>">
+
+  <script src="pouchdb-7.2.1.js"></script>
+  <script src="nes-games-randomized.js"></script>
+  <script type="application/javascript">
+const db = new PouchDB('nes')
+const POINTER_ID = 'pointer'
+
+db.changes({
+  since: 'now',
+  live: true,
+  doc_ids: [POINTER_ID],
+  include_docs: true
+}).on('change', onPointerChange)
+
+function onPointerChange (change) {
+  console.log('pointer doc changed', change)
+  if (change.deleted) return
+  redrawGameUI(change.doc.ix, change.doc._rev)
+}
+
+db.changes({
+  since: 'now',
+  live: true
+}).on('change', onChange)
+
+function onChange () {
+  db.allDocs({ include_docs: true, descending: true }, function (err, doc) {
+    if (err) console.error(err)
+    redrawReportingUI(doc.rows)
+  })
+}
+
+function redrawGameUI (ix, rev) {
+  const game = randomGames[ix]
+  document.querySelector('.game-details').innerHTML = `
+    <input id="game-ix" type="hidden" value=${ix} />
+    <input id="pointer-rev" type="hidden" value=${rev} />
+    <div>Title: <strong>${game[0]}</strong></div>
+    <div>Developer: <strong>${game[1]}</strong></div>
+    <div>Publisher: <strong>${game[2]}</strong></div>
+    <div>Release Date: <strong>${game[4]}</strong></div>
+  `
+}
+
+function redrawReportingUI (rows) {
+  document.querySelector('.data-summary').innerHTML = `You have records: ${rows.length - 1}`
+
+  const table = document.querySelector('div.all-data table')
+  table.innerHTML = ''
+
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].doc._id === 'pointer') continue
+    const row = table.insertRow()
+    row.insertCell().appendChild(document.createTextNode(i))
+    row.insertCell().appendChild(document.createTextNode(rows[i].doc.gameTitle))
+    row.insertCell().appendChild(document.createTextNode(rows[i].doc.gameReleaseDate))
+    row.insertCell().appendChild(document.createTextNode(rows[i].doc.known))
+  }
+}
+
+function buttonClick () {
+  let gameIx = parseInt(document.querySelector('#game-ix').value, 10)
+  const pointerRev = document.querySelector('#pointer-rev').value
+  const game = randomGames[gameIx]
+
+  db.put({
+    createdAt: Date.now(),
+    gameIx: gameIx,
+    known: document.querySelector('input[name="known"]:checked').value,
+    notes: document.querySelector('#story').value,
+    gameTitle: game[0],
+    gameDeveloper: game[1],
+    gamePublisher: game[2],
+    gameReleaseDate: game[4],
+    _id: `nes-${(new Date()).toISOString()}`
+  }, (err, result) => {
+    if (err) console.error(err)
+
+    let nextIx = gameIx += 1
+    if (nextIx === randomGames.length) nextIx = 0
+    document.querySelector('#story').value = ''
+
+    db.put({
+      ix: nextIx,
+      _rev: pointerRev,
+      _id: POINTER_ID
+    }, (err, result) => {
+      if (err) console.error(err)
+    })
+  })
+}
+
+function exportJSON (done) {
+  db.allDocs({ include_docs: true, descending: true }, function (err, doc) {
+    if (err) console.error(err)
+
+    const jsonLink = document.createElement('a')
+    jsonLink.download = `nes-data-${Date.now()}.json`
+    jsonLink.href = `data:application/json;charset=utf-8, ${JSON.stringify(doc.rows)}`
+    jsonLink.click()
+  })
+}
+
+function importJSON () {
+  const importFiles = Array.from(document.getElementById('import-file').files)
+  const jsonFiles = importFiles.filter((file) => file.type === 'application/json')
+  importFiles.forEach((file) => {
+    console.log(file.name, file.type)
+  })
+
+  const reader = new FileReader()
+
+  reader.onerror = (e) => {
+    return console.error(e)
+  }
+
+  reader.onload = (e) => {
+    let jsonData
+    try {
+      jsonData = JSON.parse(e.target.result)
+    } catch (e) {
+      return console.error(e)
+    }
+
+    document.getElementById('import-file').value = null
+
+    return db.bulkDocs(jsonData.map((item) => {
+      delete item.doc._rev
+      return item.doc
+    }))
+  }
+
+  reader.readAsText(jsonFiles[0], 'UTF-8')
+}
+
+function deleteData () {
+  let count = 0
+  db.allDocs({ include_docs: true, descending: true }, function (err, docs) {
+    if (err) return console.error(err)
+    for (let i = 0; i < docs.rows.length; i++) {
+      db.remove(docs.rows[i].doc, (err) => {
+        if (err) return console.error(err)
+        count++
+        if (count === docs.rows.length) return initializePointer()
+      })
+    }
+  })
+}
+
+function initializePointer () {
+  db.put({
+    ix: Math.floor(Math.random() * randomGames.length),
+    _id: POINTER_ID
+  }, (err, result) => {
+    if (!err) return console.log('pointer successfully initialized', result)
+    if (err.status !== 409) return console.error('unexpected error initializing pointer', err)
+
+    console.log('pointer already initialized')
+    db.get(POINTER_ID, (err, doc) => {
+      if (err) return console.error(err)
+      console.log('existing pointer', doc)
+      redrawGameUI(doc.ix, doc._rev)
+    })
+  })
+}
+
+document.addEventListener('DOMContentLoaded', onChange)
+document.addEventListener('DOMContentLoaded', initializePointer)
+  </script>
+</head>
+<body>
+  <h1>🕹 Nintendo Entertainment System 📓</h1>
+
+  <h2>The Game</h2>
+  <div class="game-details"></div>
+  <div class="submit">
+    <p>Do you know this game?</p>
+
+    <div>
+      <input type="radio" id="known-true" name="known" value="true">
+      <label for="known-true">True</label>
+    </div>
+
+    <div>
+      <input type="radio" id="known-false" name="known" value="false">
+      <label for="known-false">False</label>
+    </div>
+
+    <div>
+      <label for="story">Tell us your story:</label>
+      <textarea id="story" name="story" rows="5" cols="33">
+      </textarea>
+    </div>
+
+    <button onclick="buttonClick()">Save</button>
+  </div>
+  <hr />
+
+  <h2>📊 Summary 📈</h2>
+  <div class="data-summary"></div>
+  <hr />
+
+  <h2>🛠 Data Actions 🗜</h2>
+  <div class="data-actions">
+    <h3>📤 Export 📓</h3>
+    <p>
+      <button onclick="exportJSON()">Export JSON</button>
+    </p>
+
+    <h3>📥 Import 📔</h3>
+    <p>
+      <input type="file" id="import-file" \>
+      <button onclick="importJSON()">Import JSON</button>
+    </p>
+
+    <h3>⛔️ Delete ⛔️</h3>
+    <p>
+      <button onclick="if(confirm('Delete all data? This is irreversible.')) deleteData()">Delete All Data Forever</button>
+    </p>
+  </div>
+  <hr />
+  <h2>🗄 All Data 🗂</h2>
+  <div class="all-data">
+    <table>
+      <tr>
+        <th>#</th>
+        <th>title</th>
+        <th>release date</th>
+        <th>known</th>
+      </tr>
+    </table>
+  </div>
+
+</body>
+</html>
