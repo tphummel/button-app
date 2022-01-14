@@ -1,6 +1,6 @@
 # button app
 
-a browser-only "app". [demo](https://tphummel.github.io/button-app/)
+a browser-only "app". [live](https://tphummel.github.io/button-app/)
 
 Features:
 
@@ -10,9 +10,10 @@ Features:
 - import and export data
 - delete all data
 
+
 # install
 
-iOS: open [app](https://tphummel.github.io/button-app/) in mobile safari. add to home screen. 
+iOS: open [app](https://tphummel.github.io/button-app/) in mobile safari. add to home screen.
 
 # vendored deps
 
