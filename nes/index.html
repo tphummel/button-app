@@ -104,10 +104,16 @@ function exportJSON (done) {
   db.allDocs({ include_docs: true, descending: true }, function (err, doc) {
     if (err) console.error(err)
 
+    const blob = new Blob([JSON.stringify(doc.rows)], { type: 'application/json' } )
+    const objectUrl = URL.createObjectURL(blob)
+
     const jsonLink = document.createElement('a')
     jsonLink.download = `nes-data-${Date.now()}.json`
-    jsonLink.href = `data:application/json;charset=utf-8, ${JSON.stringify(doc.rows)}`
+    jsonLink.href = objectUrl
+    document.body.appendChild(jsonLink)
     jsonLink.click()
+    document.body.removeChild(jsonLink)
+    URL.revokeObjectURL(objectUrl)
   })
 }
 
@@ -181,7 +187,6 @@ document.addEventListener('DOMContentLoaded', initializePointer)
 <body>
   <h1>🕹 Nintendo Entertainment System 📓</h1>
 
-  <h2>The Game</h2>
   <div class="game-details"></div>
   <div class="submit">
     <p>Do you know this game?</p>
