@@ -1,6 +1,6 @@
 # button app
 
-a browser-only "app". [live](https://tphummel.github.io/button-app/)
+a browser-only "app". [demo](https://tphummel.github.io/button-app/)
 
 Features:
 
@@ -9,7 +9,6 @@ Features:
 - see when you clicked the button
 - import and export data
 - delete all data
-
 
 # install
 
