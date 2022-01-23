@@ -1,0 +1,25 @@
+{
+  "name": "The Button App",
+  "short_name": "The Button App",
+  "description": "A button you can click. With data ownership and other features.",
+  "scope": "/button-app/",
+  "start_url": "/button-app/",
+  "orientation": "portrait",
+  "display": "standalone",
+  "prompt_message": "Add a Home screen icon for easy access to The Button App",
+  "lang": "en-us",
+  "icons": [
+    {
+      "src": "img/mouse-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "img/mouse-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff"
+}

@@ -5,11 +5,24 @@
   <title>Button App</title>
   <meta name="description" content="">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
+  <link rel="icon" href="img/favicon-16x16.png" >
   <!-- https://css-tricks.com/emoji-as-a-favicon/ -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖲</text></svg>">
+  <!-- <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖲</text></svg>"> -->
+
+  <link rel="manifest" href="/button-app/manifest.webmanifest">
+  <link rel="canonical" href="https://tphummel.github.io/button-app/" />
 
   <script src="pouchdb-7.2.1.js"></script>
+  <script>
+      if (navigator.serviceWorker) {
+        navigator.serviceWorker.register (
+          '/button-app/service-worker.js',
+          {
+            scope: '/button-app/'
+          }
+        )
+      }
+  </script>
   <script type="application/javascript">
 
 let db = new PouchDB('clicks')
