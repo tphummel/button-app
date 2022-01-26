@@ -5,6 +5,7 @@ const APP_PREFIX = 'tba_';
 const VERSION = 'version_002';
 const URLS = [
   `${GHPATH}/`,
+  `${GHPATH}/manifest.webmanifest`,
   `${GHPATH}/index.html`,
   `${GHPATH}/pouchdb-7.2.1.js`,
   `${GHPATH}/img/favicon-16x16.png`,

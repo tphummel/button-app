@@ -49,15 +49,41 @@ function redrawClicksUI (rows) {
     row.insertCell().appendChild(document.createTextNode(i))
     row.insertCell().appendChild(document.createTextNode(rows[i].doc._id))
     row.insertCell().appendChild(document.createTextNode(rows[i].doc.createdAt))
+
+    const lat = rows[i].doc.geo?.latitude?.toLocaleString()
+    row.insertCell().appendChild(document.createTextNode(!lat ? 'n/a' : lat))
+
+    const lon = rows[i].doc.geo?.longitude?.toLocaleString()
+    row.insertCell().appendChild(document.createTextNode(!lon ? 'n/a' : lon))
   }
 }
 
 function buttonClick () {
-  db.put({
-    createdAt: Date.now(),
-    _id: (new Date()).toISOString()
-  }, (err, result) => {
-    if (err) console.error(err)
+  function geoLocationCb (result) {
+    const geo = {}
+    if (result.code) {
+      geo.errorCode = result.code
+    } else{
+      geo.timestamp = result.timestamp
+      geo.latitude = result.coords.latitude
+      geo.longitude = result.coords.longitude
+      geo.accuracy = result.coords.accuracy
+      geo.altitude = result.coords.altitude
+      geo.altitudeAccuracy = result.coords.altitudeAccuracy
+      geo.heading = result.coords.heading
+      geo.speed = result.coords.speed
+    }
+    db.put({
+      geo: geo,
+      createdAt: Date.now(),
+      _id: (new Date()).toISOString()
+    }, (err, result) => {
+      if (err) console.error(err)
+    })
+  }
+
+  navigator.geolocation.getCurrentPosition(geoLocationCb, geoLocationCb, {
+    timeout: 2 * 1000
   })
 }
 
@@ -161,6 +187,8 @@ document.addEventListener('DOMContentLoaded', showClicks)
         <th>#</th>
         <th>id</th>
         <th>ts</th>
+        <th>lat</th>
+        <th>lon</th>
       </tr>
     </table>
   </div>
